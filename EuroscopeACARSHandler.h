@@ -20,5 +20,9 @@ public:
 
 	void OnTimer(int Counter);
 
-	bool OnCompileCommand(const char *sCommandLine);
+	const char *GetLogonCode();
+
+	void OnCompilePrivateChat(const char *sSenderCallsign,
+							  const char *sReceiverCallsign,
+							  const char *sChatMessage);
 };

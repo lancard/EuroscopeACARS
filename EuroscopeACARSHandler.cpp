@@ -108,23 +108,58 @@ std::string HttpGet(const std::string &url)
 }
 
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
-										 "EuroscopeACARS",
-										 "0.5",
-										 "Sung-ho Kim",
-										 "Sung-ho Kim")
+															   "EuroscopeACARS",
+															   "0.5",
+															   "Sung-ho Kim",
+															   "Sung-ho Kim")
 {
-	DisplayUserMessage("Message", "EuroscopeACARS", std::string("EuroscopeACARS Loaded.").c_str(), false, false, false, false, false);
+	DisplayUserMessage("Message", "EuroscopeACARS", std::string("ACARS Loaded.").c_str(), false, false, false, false, false);
+
+	if (this->GetLogonCode() == nullptr)
+	{
+		DisplayUserMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) .hoppie (logoncode)", true, true, false, false, false);
+	}
+	else
+	{
+		DisplayUserMessage("ACARS", "SYSTEM", "Hoppie's logon code found. ACARS is ready to use.", true, true, false, false, false);
+	}
 }
 
 CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 {
-	DisplayUserMessage("Message", "EuroscopeACARS", std::string("EuroscopeACARS Unloaded.").c_str(), false, false, false, false, false);
+	DisplayUserMessage("Message", "EuroscopeACARS", std::string("ACARS Unloaded.").c_str(), false, false, false, false, false);
 }
 
-bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
+void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
+												  const char *sReceiverCallsign,
+												  const char *sChatMessage)
 {
-	DisplayUserMessage("ACARS", "ACARS", "TEST", true, true, false, false, false);
-	return false;
+	// check starts with .hoppie
+	std::string message(sChatMessage);
+	if (message.rfind(".hoppie", 0) == 0)
+	{
+		// extract logon code
+		std::string logonCode = message.substr(8); // skip ".hoppie "
+
+		// save to settings
+		this->SaveDataToSettings("LogonCode",
+								 "Hoppie logon code for ACARS",
+								 logonCode.c_str());
+
+		// send confirmation message
+		DisplayUserMessage("ACARS", "SYSTEM", "Hoppie's logon code saved successfully.", true, true, false, false, false);
+	}
+}
+
+const char *CEuroscopeACARSHandler::GetLogonCode()
+{
+	const char *LogonCode = this->GetDataFromSettings("LogonCode");
+	if (LogonCode == nullptr)
+	{
+		return nullptr;
+	}
+
+	return LogonCode;
 }
 
 void CEuroscopeACARSHandler::OnTimer(int Counter)
@@ -133,25 +168,21 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 
 	if (Counter % 30 == 0)
 	{
-		const char *LogonCode = this->GetDataFromSettings("LogonCode");
-		if (LogonCode == nullptr) {
-			DisplayUserMessage("ACARS", "SYSTEM", "Please type your hoppie's logon code to access.", true, true, false, false, false);
+		const char *LogonCode = this->GetLogonCode();
+		if (LogonCode == nullptr)
 			return;
-		}
+
+		const char *MyCallsign = this->ControllerMyself().GetCallsign();
+		// check callsign is empty
+		if (MyCallsign[0] == '\0')
+			return;
 
 		// prepare url
-		snprintf(url, 255, "http://www.hoppie.nl/acars/system/connect.html?logon=%s&from=RKRR_A_CTR&to=RKRR_A_CTR&type=poll&packet=", LogonCode);
-
+		snprintf(url, 255, "http://www.hoppie.nl/acars/system/connect.html?logon=%s&from=%s&to=%s&type=poll&packet=",
+				 LogonCode, MyCallsign, MyCallsign);
 		std::string acars = HttpGet(url);
 		DisplayUserMessage("ACARS", "ACARS", acars.c_str(), true, true, false, false, false);
-		/*
-		this->SaveDataToSettings("LogonCode",
-								"Hoppie logon code for ACARS",
-								"2.7");
-		*/
 	}
-
-	// DisplayUserMessage("ACARS", "DEBUG", this->ControllerMyself().GetCallsign(), true, true, false, false, false);	
 }
 
 void CEuroscopeACARSHandler::OnFunctionCall(int FunctionId, const char *sItemString, POINT Pt, RECT Area)
