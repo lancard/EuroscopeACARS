@@ -164,8 +164,6 @@ const char *CEuroscopeACARSHandler::GetLogonCode()
 
 void CEuroscopeACARSHandler::OnTimer(int Counter)
 {
-	char url[256];
-
 	if (Counter % 30 == 0)
 	{
 		const char *LogonCode = this->GetLogonCode();
@@ -174,14 +172,45 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 
 		const char *MyCallsign = this->ControllerMyself().GetCallsign();
 		// check callsign is empty
-		if (MyCallsign[0] == '\0')
+		if (MyCallsign == nullptr || MyCallsign[0] == '\0')
 			return;
 
-		// prepare url
-		snprintf(url, 255, "http://www.hoppie.nl/acars/system/connect.html?logon=%s&from=%s&to=%s&type=poll&packet=",
-				 LogonCode, MyCallsign, MyCallsign);
+		// prepare url safely
+		std::string url = std::string("http://www.hoppie.nl/acars/system/connect.html?logon=")
+							+ LogonCode
+							+ "&from=" + MyCallsign
+							+ "&to=" + MyCallsign
+							+ "&type=poll&packet=";
 		std::string acars = HttpGet(url);
-		DisplayUserMessage("ACARS", "ACARS", acars.c_str(), true, true, false, false, false);
+
+		// check if acars is starting with "error"
+		if (acars.rfind("error", 0) == 0)
+		{
+			DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
+			return;
+		}
+
+		// check if acars is just 'ok' string
+		if (acars == "ok")
+			return;
+
+		// message format sample: ok {TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@}}
+		// remove leading "ok "
+		if (acars.rfind("ok ", 0) != 0)
+			return;
+
+		acars = acars.substr(4);
+		std::string sender = acars.substr(0, acars.find(' '));
+		acars = acars.substr(acars.find(' ') + 1);
+		std::string acarstype = acars.substr(0, acars.find(' '));
+		acars = acars.substr(acars.find(' ') + 2);
+		// remove last '}} '
+		if (acars.size() >= 3 && acars.substr(acars.size() - 3) == "}} ")
+		{
+			acars = acars.substr(0, acars.size() - 3);
+		}
+		
+		DisplayUserMessage(acarstype.c_str(), sender.c_str(), acars.c_str(), true, true, false, false, false);
 	}
 }
 
