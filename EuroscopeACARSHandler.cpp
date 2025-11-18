@@ -117,7 +117,7 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 
 	if (this->GetLogonCode() == nullptr)
 	{
-		DisplayUserMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) .hoppie (logoncode)", true, true, false, false, false);
+		DisplayUserMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) @hoppie (logoncode)", true, true, false, false, false);
 	}
 	else
 	{
@@ -136,10 +136,10 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 {
 	// check starts with .hoppie
 	std::string message(sChatMessage);
-	if (message.rfind(".hoppie", 0) == 0)
+	if (message.rfind("@hoppie", 0) == 0)
 	{
 		// extract logon code
-		std::string logonCode = message.substr(8); // skip ".hoppie "
+		std::string logonCode = message.substr(8); // skip "@hoppie "
 
 		// save to settings
 		this->SaveDataToSettings("LogonCode",
