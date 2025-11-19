@@ -21,6 +21,10 @@ public:
 	void OnTimer(int Counter);
 
 	const char *GetLogonCode();
+	const char *GetLogonAddress();
+
+	std::string LastSender = "";
+	std::string LastMessageId = "0";
 
 	void OnCompilePrivateChat(const char *sSenderCallsign,
 							  const char *sReceiverCallsign,
