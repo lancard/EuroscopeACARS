@@ -109,13 +109,13 @@ std::string HttpGet(const std::string &url)
 
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
-															   "0.5",
+															   "0.6",
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
 	DisplayUserMessage("Message", "EuroscopeACARS", std::string("ACARS Loaded.").c_str(), false, false, false, false, false);
 
-	if (this->GetLogonCode() == nullptr)
+	if (GetLogonCode() == nullptr)
 	{
 		DisplayUserMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) @hoppie (logoncode)", true, true, false, false, false);
 	}
@@ -142,9 +142,9 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 		std::string logonCode = message.substr(8); // skip "@hoppie "
 
 		// save to settings
-		this->SaveDataToSettings("LogonCode",
-								 "Hoppie logon code for ACARS",
-								 logonCode.c_str());
+		SaveDataToSettings("LogonCode",
+						   "Hoppie logon code for ACARS",
+						   logonCode.c_str());
 
 		// send confirmation message
 		DisplayUserMessage("ACARS", "SYSTEM", "Hoppie's logon code saved successfully.", true, true, false, false, false);
@@ -153,7 +153,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 
 const char *CEuroscopeACARSHandler::GetLogonCode()
 {
-	const char *LogonCode = this->GetDataFromSettings("LogonCode");
+	const char *LogonCode = GetDataFromSettings("LogonCode");
 	if (LogonCode == nullptr)
 	{
 		return nullptr;
@@ -168,11 +168,14 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 	{
 		if (Counter % 30 == 0)
 		{
-			const char *LogonCode = this->GetLogonCode();
+			const char *LogonCode = GetLogonCode();
 			if (LogonCode == nullptr)
 				return;
 
-			const char *MyCallsign = this->ControllerMyself().GetCallsign();
+			if (!ControllerMyself().IsController())
+				return;
+
+			const char *MyCallsign = ControllerMyself().GetCallsign();
 			// check callsign is empty
 			if (MyCallsign == nullptr || MyCallsign[0] == '\0')
 				return;
@@ -193,25 +196,36 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 				return;
 
 			// message format sample: ok {TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@}}
-			// remove leading "ok "
 			if (acars.rfind("ok ", 0) != 0)
-				return;
-
-			acars = acars.substr(4);
-			std::string sender = acars.substr(0, acars.find(' '));
-			acars = acars.substr(acars.find(' ') + 1);
-			std::string acarstype = acars.substr(0, acars.find(' '));
-			acars = acars.substr(acars.find(' ') + 2);
-			// remove last '}} '
-			if (acars.size() >= 3 && acars.substr(acars.size() - 3) == "}} ")
 			{
-				acars = acars.substr(0, acars.size() - 3);
+				DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
+				return;
 			}
 
-			DisplayUserMessage(acarstype.c_str(), sender.c_str(), acars.c_str(), true, true, false, false, false);
+			try
+			{
+
+				// remove leading "ok "
+				std::string message = acars.substr(4);
+				std::string sender = message.substr(0, message.find(' '));
+				message = message.substr(message.find(' ') + 1);
+				std::string acarstype = message.substr(0, message.find(' '));
+				message = message.substr(message.find(' ') + 2);
+				// remove last '}} '
+				if (message.size() >= 3 && message.substr(message.size() - 3) == "}} ")
+				{
+					message = message.substr(0, message.size() - 3);
+				}
+
+				DisplayUserMessage(acarstype.c_str(), sender.c_str(), message.c_str(), true, true, false, false, false);
+			}
+			catch (...)
+			{
+				DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
+			}
 		}
 	}
-	catch (const std::exception & e)
+	catch (const std::exception &e)
 	{
 		// display error message
 		DisplayUserMessage("ACARS", "SYSTEM", e.what(), true, true, false, false, false);
