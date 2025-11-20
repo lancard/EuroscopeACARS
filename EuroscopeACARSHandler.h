@@ -29,4 +29,6 @@ public:
 	void OnCompilePrivateChat(const char *sSenderCallsign,
 							  const char *sReceiverCallsign,
 							  const char *sChatMessage);
+
+	bool OnCompileCommand(const char *sCommandLine);
 };

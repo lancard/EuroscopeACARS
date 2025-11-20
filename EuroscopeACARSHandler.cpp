@@ -1,4 +1,6 @@
 #include "EuroscopeACARSHandler.h"
+#include <format>
+#include <sstream>
 #include <winhttp.h>
 #pragma comment(lib, "winhttp.lib")
 
@@ -109,13 +111,13 @@ std::string HttpGet(const std::string &url)
 
 std::string ConvertCpdlcHttpEncode(const std::string &value)
 {
-	std::string escaped = "";
+	std::ostringstream escaped;
 
 	for (char c : value)
 	{
 		if (c == ' ')
 		{
-			escaped += '+';
+			escaped << '+';
 			continue;
 		}
 
@@ -123,12 +125,17 @@ std::string ConvertCpdlcHttpEncode(const std::string &value)
 			c -= 32; // 'a'->'A'
 
 		if (isalnum(static_cast<unsigned char>(c)) ||
-			c == '-' || c == '_' || c == '.' || c == '@')
+			c == '-' || c == '_' || c == '.')
 		{
-			escaped += c;
+			escaped << c;
+		}
+
+		if (c == '?' || c == ':' || c == '(' || c == ')' || c == ',' || c == '\'' || c == '=' || c == '/' || c == '+')
+		{
+			escaped << std::format("{:02X}", c);
 		}
 	}
-	return escaped;
+	return escaped.str();
 }
 
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
@@ -141,23 +148,75 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 
 	if (GetLogonCode() == nullptr)
 	{
-		DisplayUserMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) @hoppie (logoncode)", true, true, false, false, false);
+		DisplayUserMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) .hoppie (logoncode)", true, true, false, false, false);
 	}
 	if (GetLogonAddress() == nullptr)
 	{
-		DisplayUserMessage("ACARS", "SYSTEM", "Please send your logon address to access. ex) @address RKRR", true, true, false, false, false);
+		DisplayUserMessage("ACARS", "SYSTEM", "Please send your logon address to access. ex) .address RKRR", true, true, false, false, false);
 	}
 
 	if (GetLogonCode() != nullptr && GetLogonAddress() != nullptr)
 	{
-		std::string msg = std::string("All configuration set. Ready to use! - Logon Address : ") + GetLogonAddress() + " / To change: @address (address)";
+		std::string msg = std::format(
+			"All configuration set. Ready to use! (Logon Address : {}) / To change: .address (address)",
+			GetLogonAddress());
 		DisplayUserMessage("ACARS", "SYSTEM", msg.c_str(), true, true, false, false, false);
 	}
 }
 
 CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 {
-	DisplayUserMessage("Message", "EuroscopeACARS", std::string("ACARS Unloaded.").c_str(), false, false, false, false, false);
+	DisplayUserMessage("Message", "EuroscopeACARS", "ACARS Unloaded.", false, false, false, false, false);
+}
+
+bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
+{
+	std::string message(sCommandLine);
+
+	// check starts with .hoppie
+	if (message.rfind(".hoppie ", 0) == 0)
+	{
+		// extract logon code
+		std::string logonCode = message.substr(8); // skip ".hoppie "
+
+		// save to settings
+		SaveDataToSettings("LogonCode",
+						   "Hoppie logon code for ACARS",
+						   logonCode.c_str());
+
+		// send confirmation message
+		DisplayUserMessage("ACARS", "SYSTEM", "Hoppie's logon code saved successfully.", true, true, false, false, false);
+		return true;
+	}
+
+	// check starts with .address
+	if (message.rfind(".address ", 0) == 0)
+	{
+		// extract logon code
+		std::string logonAddress = message.substr(9); // skip ".address "
+
+		// save to settings
+		SaveDataToSettings("LogonAddress",
+						   "Hoppie logon address for ACARS",
+						   logonAddress.c_str());
+
+		// send confirmation message
+		DisplayUserMessage("ACARS", "SYSTEM", "Logon address saved successfully.", true, true, false, false, false);
+		return true;
+	}
+
+	// check starts with .last
+	if (message.rfind(".last ", 0) == 0)
+	{
+		// extract logon code
+		LastSender = message.substr(6); // skip ".last "
+
+		// send confirmation message
+		DisplayUserMessage("ACARS", "SYSTEM", "last sender changed.", true, true, false, false, false);
+		return true;
+	}
+
+	return false;
 }
 
 void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
@@ -171,49 +230,6 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	if (receiver != "ACARS")
 		return;
 
-	// check starts with @hoppie
-	if (message.rfind("@hoppie", 0) == 0)
-	{
-		// extract logon code
-		std::string logonCode = message.substr(8); // skip "@hoppie "
-
-		// save to settings
-		SaveDataToSettings("LogonCode",
-							"Hoppie logon code for ACARS",
-							logonCode.c_str());
-
-		// send confirmation message
-		DisplayUserMessage("ACARS", "SYSTEM", "Hoppie's logon code saved successfully.", true, true, false, false, false);
-		return;
-	}
-
-	// check starts with @address
-	if (message.rfind("@address", 0) == 0)
-	{
-		// extract logon code
-		std::string logonAddress = message.substr(9); // skip "@address "
-
-		// save to settings
-		SaveDataToSettings("LogonAddress",
-							"Hoppie logon address for ACARS",
-							logonAddress.c_str());
-
-		// send confirmation message
-		DisplayUserMessage("ACARS", "SYSTEM", "Logon address saved successfully.", true, true, false, false, false);
-		return;
-	}
-
-	// check starts with @last
-	if (message.rfind("@last", 0) == 0)
-	{
-		// extract logon code
-		LastSender = message.substr(6); // skip "@last "
-
-		// send confirmation message
-		DisplayUserMessage("ACARS", "SYSTEM", "last sender changed.", true, true, false, false, false);
-		return;
-	}
-
 	if (LastSender == "")
 	{
 		DisplayUserMessage("ACARS", "SYSTEM", "no last sender.", true, true, false, false, false);
@@ -222,9 +238,13 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 
 	// other case, reply for cpdlc
 	// format: /data2/2//NE/FSM 1317 251119 EDDM OCN91D RCD RECEIVED @REQUEST BEING PROCESSED @STANDBY
-	std::string url = std::string("http://www.hoppie.nl/acars/system/connect.html?logon=") + GetLogonCode() +
-						"&from=" + GetLogonAddress() + "&to=" + LastSender +
-						"&type=cpdlc&packet=%2Fdata%2F16%2F" + LastMessageId + "%2FNE%2F" + ConvertCpdlcHttpEncode(message);
+	std::string url = std::format(
+		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata%2F16%2F{}%2FNE%2F{}",
+		GetLogonCode(),
+		GetLogonAddress(),
+		LastSender,
+		LastMessageId,
+		ConvertCpdlcHttpEncode(message));
 	// DisplayUserMessage("ACARS", "DEBUG", url.c_str(), true, true, false, false, false);
 	HttpGet(url);
 	std::string ackMessage = std::string("CPDLC message sent to ") + LastSender;
@@ -278,7 +298,11 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 			*/
 
 			// prepare url safely
-			std::string url = std::string("http://www.hoppie.nl/acars/system/connect.html?logon=") + LogonCode + "&from=" + LogonAddress + "&to=" + LogonAddress + "&type=poll&packet=";
+			std::string url = std::format(
+				"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=poll&packet=",
+				LogonCode,
+				LogonAddress,
+				LogonAddress);
 			std::string acars = HttpGet(url);
 
 			// check if acars is starting with "error"
@@ -301,7 +325,6 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 
 			try
 			{
-
 				// remove leading "ok "
 				std::string message = acars.substr(4);
 				std::string sender = message.substr(0, message.find(' '));
@@ -312,6 +335,10 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 				if (message.size() >= 3 && message.substr(message.size() - 3) == "}} ")
 				{
 					message = message.substr(0, message.size() - 3);
+				}
+				if (message.size() >= 2 && message.substr(message.size() - 2) == "}}")
+				{
+					message = message.substr(0, message.size() - 2);
 				}
 
 				LastSender = sender;
