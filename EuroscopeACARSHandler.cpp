@@ -398,12 +398,14 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 			}
 
 			// remove leading "ok "
-			string message = acars.substr(4);
+			string message = acars.substr(3);
 
 			// split by }}
 			vector<string> messages = split(message, "}}");
 			for (string &t : messages)
 			{
+				if (t.length() < 5)
+					continue;
 				string k = trim(t).substr(1); // passing '{'
 				DebugPrint(k);
 				ProcessMessage(k);
@@ -413,7 +415,7 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 	catch (const exception &e)
 	{
 		// display error message
-		DisplayUserMessage("ACARS", "SYSTEM", e.what(), true, true, false, false, false);
+		DebugPrint(e.what());
 	}
 }
 
