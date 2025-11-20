@@ -2,10 +2,10 @@
 
 #define RGB_YELLOW RGB(255, 255, 0)
 
-std::string HttpGet(const std::string &url)
+string HttpGet(const string &url)
 {
 	int wlen = MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, nullptr, 0);
-	std::wstring wurl(wlen, 0);
+	wstring wurl(wlen, 0);
 	MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, &wurl[0], wlen);
 
 	URL_COMPONENTS comp = {0};
@@ -78,7 +78,7 @@ std::string HttpGet(const std::string &url)
 		return "";
 	}
 
-	std::string response;
+	string response;
 	DWORD sizeAvailable = 0;
 
 	do
@@ -89,7 +89,7 @@ std::string HttpGet(const std::string &url)
 		if (sizeAvailable == 0)
 			break;
 
-		std::string buffer(sizeAvailable, 0);
+		string buffer(sizeAvailable, 0);
 		DWORD bytesRead = 0;
 		if (!WinHttpReadData(hRequest, &buffer[0], sizeAvailable, &bytesRead))
 			break;
@@ -105,9 +105,9 @@ std::string HttpGet(const std::string &url)
 	return response;
 }
 
-std::string ConvertCpdlcHttpEncode(const std::string &value)
+string ConvertCpdlcHttpEncode(const string &value)
 {
-	std::ostringstream escaped;
+	ostringstream escaped;
 
 	for (char c : value)
 	{
@@ -128,19 +128,51 @@ std::string ConvertCpdlcHttpEncode(const std::string &value)
 
 		if (c == '?' || c == ':' || c == '(' || c == ')' || c == ',' || c == '\'' || c == '=' || c == '/' || c == '+')
 		{
-			escaped << std::format("%%{:02X}", c);
+			escaped << format("%{:02X}", c);
 		}
 	}
 	return escaped.str();
 }
 
+vector<string> split(const string &str, const string &delim)
+{
+	vector<string> result;
+	size_t start = 0, pos;
+	while ((pos = str.find(delim, start)) != string::npos)
+	{
+		result.push_back(str.substr(start, pos - start));
+		start = pos + delim.size();
+	}
+	result.push_back(str.substr(start));
+	return result;
+}
+
+string trim(const string &s)
+{
+	size_t start = 0;
+	while (start < s.size() && isspace(static_cast<unsigned char>(s[start])))
+	{
+		++start;
+	}
+
+	if (start == s.size())
+		return "";
+
+	size_t end = s.size() - 1;
+	while (end > start && isspace(static_cast<unsigned char>(s[end])))
+	{
+		--end;
+	}
+
+	return s.substr(start, end - start + 1);
+}
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
 															   "0.9",
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
-	DisplayUserMessage("Message", "EuroscopeACARS", std::string("ACARS Loaded.").c_str(), false, false, false, false, false);
+	DisplayUserMessage("Message", "EuroscopeACARS", string("ACARS Loaded.").c_str(), false, false, false, false, false);
 
 	if (GetLogonCode() == nullptr)
 	{
@@ -153,7 +185,7 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 
 	if (GetLogonCode() != nullptr && GetLogonAddress() != nullptr)
 	{
-		std::string msg = std::format(
+		string msg = format(
 			"All configuration set. Ready to use! (Logon Address : {}) / To change: .address (address)",
 			GetLogonAddress());
 		DisplayUserMessage("ACARS", "SYSTEM", msg.c_str(), true, true, false, false, false);
@@ -165,7 +197,7 @@ CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 	DisplayUserMessage("Message", "EuroscopeACARS", "ACARS Unloaded.", false, false, false, false, false);
 }
 
-void CEuroscopeACARSHandler::DebugPrint(std::string message)
+void CEuroscopeACARSHandler::DebugPrint(string message)
 {
 	if (!DebugMode)
 		return;
@@ -175,13 +207,13 @@ void CEuroscopeACARSHandler::DebugPrint(std::string message)
 
 bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 {
-	std::string message(sCommandLine);
+	string message(sCommandLine);
 
 	// check starts with .hoppie
 	if (message.rfind(".hoppie ", 0) == 0)
 	{
 		// extract logon code
-		std::string logonCode = message.substr(8); // skip ".hoppie "
+		string logonCode = message.substr(8); // skip ".hoppie "
 
 		// save to settings
 		SaveDataToSettings("LogonCode",
@@ -197,7 +229,7 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 	if (message.rfind(".address ", 0) == 0)
 	{
 		// extract logon code
-		std::string logonAddress = message.substr(9); // skip ".address "
+		string logonAddress = message.substr(9); // skip ".address "
 
 		// save to settings
 		SaveDataToSettings("LogonAddress",
@@ -223,17 +255,17 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 												  const char *sReceiverCallsign,
 												  const char *sChatMessage)
 {
-	std::string sender(sSenderCallsign);
-	std::string receiver(sReceiverCallsign);
-	std::string message(sChatMessage);
+	string sender(sSenderCallsign);
+	string receiver(sReceiverCallsign);
+	string message(sChatMessage);
 
 	if (receiver.rfind("ACARS-", 0) != 0)
 		return;
 
 	// Get Callsign from receiver
-	std::string callsign = receiver.substr(6);
+	string callsign = receiver.substr(6);
 
-	std::string LastMessageId = "";
+	string LastMessageId = "";
 	if (LastMessageIdMap.contains(callsign))
 		LastMessageId = LastMessageIdMap[callsign];
 
@@ -241,7 +273,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	// format: /data2/2//NE/FSM 1317 251119 EDDM OCN91D RCD RECEIVED @REQUEST BEING PROCESSED @STANDBY
 	// NE: no reply required
 	// WU: wilco / unable
-	std::string url = std::format(
+	string url = format(
 		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata%2F16%2F{}%2FWU%2F{}",
 		GetLogonCode(),
 		GetLogonAddress(),
@@ -250,7 +282,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 		ConvertCpdlcHttpEncode(message));
 	DebugPrint(url);
 	HttpGet(url);
-	std::string ackMessage = std::format("CPDLC message sent to {}", callsign);
+	string ackMessage = format("CPDLC message sent to {}", callsign);
 	DisplayUserMessage(receiver.c_str(), "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
 }
 
@@ -274,6 +306,45 @@ const char *CEuroscopeACARSHandler::GetLogonAddress()
 	}
 
 	return LogonAddress;
+}
+
+void CEuroscopeACARSHandler::ProcessMessage(string message)
+{
+	// message format sample: TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@
+	try
+	{
+		string sender = message.substr(0, message.find(' '));
+		message = message.substr(message.find(' ') + 1);
+		string acarstype = message.substr(0, message.find(' '));
+		message = message.substr(message.find(' ') + 2);
+
+		string acarssender = string("ACARS-") + sender;
+
+		// check cpdlc
+		if (acarstype == "cpdlc")
+		{
+			string cpdlc = message.substr(message.find('/') + 1);
+			string messageid = cpdlc.substr(0, cpdlc.find('/'));
+			cpdlc = cpdlc.substr(cpdlc.find('/') + 1);
+			string replyid = cpdlc.substr(0, cpdlc.find('/'));
+			cpdlc = cpdlc.substr(cpdlc.find('/') + 1);
+			string ratype = cpdlc.substr(0, cpdlc.find('/'));
+			cpdlc = cpdlc.substr(cpdlc.find('/') + 1);
+
+			LastMessageIdMap[sender] = messageid;
+
+			DisplayUserMessage(acarssender.c_str(), messageid.c_str(), cpdlc.c_str(), true, true, true, true, true);
+		}
+		// normal telex
+		else
+		{
+			DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, true, true, true);
+		}
+	}
+	catch (const exception &ee)
+	{
+		DebugPrint(string(ee.what()));
+	}
 }
 
 void CEuroscopeACARSHandler::OnTimer(int Counter)
@@ -301,12 +372,12 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 			*/
 
 			// prepare url safely
-			std::string url = std::format(
+			string url = format(
 				"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=poll&packet=",
 				LogonCode,
 				LogonAddress,
 				LogonAddress);
-			std::string acars = HttpGet(url);
+			string acars = HttpGet(url);
 
 			// check if acars is starting with "error"
 			if (acars.rfind("error", 0) == 0)
@@ -326,56 +397,20 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 				return;
 			}
 
-			try
+			// remove leading "ok "
+			string message = acars.substr(4);
+
+			// split by }}
+			vector<string> messages = split(message, "}}");
+			for (string &t : messages)
 			{
-				DebugPrint(acars);
-
-				// remove leading "ok "
-				std::string message = acars.substr(4);
-				std::string sender = message.substr(0, message.find(' '));
-				message = message.substr(message.find(' ') + 1);
-				std::string acarstype = message.substr(0, message.find(' '));
-				message = message.substr(message.find(' ') + 2);
-				// remove last '}} '
-				if (message.size() >= 3 && message.substr(message.size() - 3) == "}} ")
-				{
-					message = message.substr(0, message.size() - 3);
-				}
-				if (message.size() >= 2 && message.substr(message.size() - 2) == "}}")
-				{
-					message = message.substr(0, message.size() - 2);
-				}
-
-				std::string acarssender = std::string("ACARS-") + sender;
-
-				// check cpdlc
-				if (acarstype == "cpdlc")
-				{
-					std::string cpdlc = message.substr(message.find('/') + 1);
-					std::string messageid = cpdlc.substr(0, message.find('/'));
-					cpdlc = cpdlc.substr(message.find('/') + 1);
-					std::string replyid = cpdlc.substr(0, message.find('/'));
-					cpdlc = cpdlc.substr(message.find('/') + 1);
-					std::string ratype = cpdlc.substr(0, message.find('/'));
-					cpdlc = cpdlc.substr(message.find('/') + 1);
-
-					LastMessageIdMap[sender] = messageid;
-
-					DisplayUserMessage(acarssender.c_str(), messageid.c_str(), cpdlc.c_str(), true, true, true, true, true);
-				}
-				// normal telex
-				else
-				{
-					DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, true, true, true);
-				}
-			}
-			catch (const std::exception &ee)
-			{
-				DisplayUserMessage("ACARS", "SYSTEM", ee.what(), true, true, false, false, false);
+				string k = trim(t).substr(1); // passing '{'
+				DebugPrint(k);
+				ProcessMessage(k);
 			}
 		}
 	}
-	catch (const std::exception &e)
+	catch (const exception &e)
 	{
 		// display error message
 		DisplayUserMessage("ACARS", "SYSTEM", e.what(), true, true, false, false, false);
