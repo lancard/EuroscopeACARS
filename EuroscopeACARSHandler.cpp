@@ -375,21 +375,21 @@ void CEuroscopeACARSHandler::ProcessMessage(string message)
 			if (cpdlc == "REQUEST LOGON")
 			{
 				SendToHoppie(sender, messageid, "NE", "LOGON ACCEPTED");
-				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged On!", true, true, false, true, true);
+				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged On!", true, true, false, false, false);
 				return;
 			}
 			if (cpdlc == "LOGOFF")
 			{
-				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged Off!", true, true, false, true, true);
+				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged Off!", true, true, false, false, false);
 				return;
 			}
 
-			DisplayUserMessage(acarssender.c_str(), sender.c_str(), cpdlc.c_str(), true, true, false, true, true);
+			DisplayUserMessage(acarssender.c_str(), sender.c_str(), cpdlc.c_str(), true, true, false, true, false);
 		}
 		// normal telex
 		else
 		{
-			DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, false, true, true);
+			DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, false, true, false);
 		}
 	}
 	catch (const exception &ee)
