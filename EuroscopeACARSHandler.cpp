@@ -126,7 +126,7 @@ string ConvertCpdlcHttpEncode(const string &value)
 			continue;
 		}
 
-		if (c == '-' || c == '_' || c == '.' || c == '@' || c == '(' || c == ')' || c == ',')
+		if (c == '-' || c == '.' || c == '@')
 		{
 			escaped << c;
 			continue;
@@ -170,7 +170,7 @@ string trim(const string &s)
 }
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
-															   "0.9.2",
+															   "0.9.4",
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
@@ -247,6 +247,7 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 	if (message.rfind(".acarsdebug", 0) == 0)
 	{
 		DebugMode = true;
+		DisplayUserMessage("ACARS", "SYSTEM", "Debug mode on.", true, true, false, false, false);
 		return true;
 	}
 
@@ -276,7 +277,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	// NE: no reply required
 	// WU: wilco / unable
 	string url = format(
-		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata%2F16%2F{}%2FWU%2F{}",
+		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata2%2F16%2F{}%2FWU%2F{}",
 		GetLogonCode(),
 		GetLogonAddress(),
 		callsign,
