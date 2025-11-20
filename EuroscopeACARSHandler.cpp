@@ -117,9 +117,6 @@ string ConvertCpdlcHttpEncode(const string &value)
 			continue;
 		}
 
-		if (c >= 'a' && c <= 'z')
-			c -= 32; // 'a'->'A'
-
 		if (isalnum(static_cast<unsigned char>(c)))
 		{
 			escaped << c;
@@ -134,6 +131,14 @@ string ConvertCpdlcHttpEncode(const string &value)
 	}
 
 	return escaped.str();
+}
+
+std::string uppercase(std::string s)
+{
+	std::ranges::transform(s, s.begin(),
+						   [](unsigned char c)
+						   { return std::toupper(c); });
+	return s;
 }
 
 vector<string> split(const string &str, const string &delim)
@@ -170,7 +175,7 @@ string trim(const string &s)
 }
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
-															   "0.9.7",
+															   "0.9.9",
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
@@ -197,6 +202,29 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 {
 	DisplayUserMessage("Message", "EuroscopeACARS", "ACARS Unloaded.", false, false, false, false, false);
+}
+
+string CEuroscopeACARSHandler::SendToHoppie(const string to, const string replyid, const string cpdlcratype, const string cpdlcmessage)
+{
+	const char *logoncode = GetLogonCode();
+	const char *logonaddress = GetLogonAddress();
+
+	if (logoncode == nullptr || logonaddress == nullptr)
+		return "";
+
+	GlobalMessageId += 10;
+
+	string url = format(
+		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata2%2F{}%2F{}%2F{}%2F{}",
+		logoncode,
+		logonaddress,
+		to,
+		GlobalMessageId,
+		replyid,
+		cpdlcratype,
+		ConvertCpdlcHttpEncode(cpdlcmessage));
+	DebugPrint(url);
+	return HttpGet(url);
 }
 
 void CEuroscopeACARSHandler::DebugPrint(string message)
@@ -267,6 +295,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	string sender(sSenderCallsign);
 	string receiver(sReceiverCallsign);
 	string message(sChatMessage);
+	message = uppercase(message);
 
 	if (receiver.rfind("ACARS-", 0) != 0)
 		return;
@@ -282,17 +311,14 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	// format: /data2/2//NE/FSM 1317 251119 EDDM OCN91D RCD RECEIVED @REQUEST BEING PROCESSED @STANDBY
 	// NE: no reply required
 	// WU: wilco / unable
-	GlobalMessageId += 10;
-	string url = format(
-		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata2%2F{}%2F{}%2FWU%2F{}",
-		GetLogonCode(),
-		GetLogonAddress(),
-		callsign,
-		GlobalMessageId,
-		LastMessageId,
-		ConvertCpdlcHttpEncode(message));
-	DebugPrint(url);
-	HttpGet(url);
+	if (message == "ROGER" || message == "RGR" || message == "AFFIRM" || message == "AFFIRMATIVE" || message == "NEG" || message == "NEGATIVE")
+	{
+		SendToHoppie(callsign, LastMessageId, "NE", message);
+	}
+	else
+	{
+		SendToHoppie(callsign, LastMessageId, "WU", message);
+	}
 	string ackMessage = format("CPDLC message sent to {}", callsign);
 	DisplayUserMessage(receiver.c_str(), "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
 }
@@ -346,12 +372,24 @@ void CEuroscopeACARSHandler::ProcessMessage(string message)
 
 			LastMessageIdMap[sender] = messageid;
 
-			DisplayUserMessage(acarssender.c_str(), sender.c_str(), cpdlc.c_str(), true, true, true, true, true);
+			if (cpdlc == "REQUEST LOGON")
+			{
+				SendToHoppie(sender, messageid, "NE", "LOGON ACCEPTED");
+				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged On!", true, true, false, true, true);
+				return;
+			}
+			if (cpdlc == "LOGOFF")
+			{
+				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged Off!", true, true, false, true, true);
+				return;
+			}
+
+			DisplayUserMessage(acarssender.c_str(), sender.c_str(), cpdlc.c_str(), true, true, false, true, true);
 		}
 		// normal telex
 		else
 		{
-			DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, true, true, true);
+			DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, false, true, true);
 		}
 	}
 	catch (const exception &ee)

@@ -2,6 +2,9 @@
 #include <SDKDDKVer.h>
 #include <afxwin.h>
 #include <string>
+#include <ranges>
+#include <algorithm>
+#include <cctype>
 #include <unordered_map>
 #include <format>
 #include <sstream>
@@ -30,6 +33,7 @@ public:
 
 	void DebugPrint(string message);
 	void ProcessMessage(string message);
+	string SendToHoppie(const string to, const string replyid, const string cpdlcratype, const string cpdlcmessage);
 
 	int GlobalMessageId = 1000;
 	unordered_map<string, string> LastMessageIdMap;
