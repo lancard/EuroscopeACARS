@@ -28,6 +28,9 @@ public:
 	const char *GetLogonCode();
 	const char *GetLogonAddress();
 
+	bool DebugMode = false;
+	void DebugPrint(std::string message);
+
 	std::unordered_map<std::string, std::string> LastMessageIdMap;
 
 	void OnCompilePrivateChat(const char *sSenderCallsign,

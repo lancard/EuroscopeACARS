@@ -165,6 +165,14 @@ CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 	DisplayUserMessage("Message", "EuroscopeACARS", "ACARS Unloaded.", false, false, false, false, false);
 }
 
+void CEuroscopeACARSHandler::DebugPrint(std::string message)
+{
+	if (!DebugMode)
+		return;
+
+	DisplayUserMessage("ACARS", "DEBUG", message.c_str(), true, true, false, false, false);
+}
+
 bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 {
 	std::string message(sCommandLine);
@@ -201,6 +209,13 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 		return true;
 	}
 
+	// check starts with .address
+	if (message.rfind(".acarsdebug", 0) == 0)
+	{
+		DebugMode = true;
+		return true;
+	}
+
 	return false;
 }
 
@@ -219,7 +234,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	std::string callsign = receiver.substr(6);
 
 	std::string LastMessageId = "";
-	if(LastMessageIdMap.contains(callsign))
+	if (LastMessageIdMap.contains(callsign))
 		LastMessageId = LastMessageIdMap[callsign];
 
 	// other case, reply for cpdlc
@@ -233,6 +248,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 		callsign,
 		LastMessageId,
 		ConvertCpdlcHttpEncode(message));
+	DebugPrint(url);
 	HttpGet(url);
 	std::string ackMessage = std::format("CPDLC message sent to {}", callsign);
 	DisplayUserMessage(receiver.c_str(), "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
@@ -312,8 +328,8 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 
 			try
 			{
-				DisplayUserMessage("ACARS", "DEBUG", acars.c_str(), true, true, false, false, false);
-				
+				DebugPrint(acars);
+
 				// remove leading "ok "
 				std::string message = acars.substr(4);
 				std::string sender = message.substr(0, message.find(' '));
