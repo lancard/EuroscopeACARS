@@ -170,7 +170,7 @@ string trim(const string &s)
 }
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
-															   "0.9.4",
+															   "0.9.6",
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
@@ -201,8 +201,11 @@ CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 
 void CEuroscopeACARSHandler::DebugPrint(string message)
 {
-	if (!DebugMode)
+	const char *DebugMode = GetDataFromSettings("AcarsDebugMode");
+	if (DebugMode == nullptr || DebugMode[0] != 'o')
+	{
 		return;
+	}
 
 	DisplayUserMessage("ACARS", "DEBUG", message.c_str(), true, true, false, false, false);
 }
@@ -246,7 +249,10 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 	// check starts with .address
 	if (message.rfind(".acarsdebug", 0) == 0)
 	{
-		DebugMode = true;
+		// save to settings
+		SaveDataToSettings("AcarsDebugMode",
+						   "ACARS Debug Mode",
+						   "on");
 		DisplayUserMessage("ACARS", "SYSTEM", "Debug mode on.", true, true, false, false, false);
 		return true;
 	}
@@ -276,11 +282,13 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	// format: /data2/2//NE/FSM 1317 251119 EDDM OCN91D RCD RECEIVED @REQUEST BEING PROCESSED @STANDBY
 	// NE: no reply required
 	// WU: wilco / unable
+	GlobalMessageId += 10;
 	string url = format(
-		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata2%2F16%2F{}%2FWU%2F{}",
+		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata2%2F{}%2F{}%2FWU%2F{}",
 		GetLogonCode(),
 		GetLogonAddress(),
 		callsign,
+		GlobalMessageId,
 		LastMessageId,
 		ConvertCpdlcHttpEncode(message));
 	DebugPrint(url);
@@ -395,6 +403,8 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 			if (acars == "ok")
 				return;
 
+			DebugPrint(acars);
+
 			// message format sample: ok {TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@}}
 			if (acars.rfind("ok ", 0) != 0)
 			{
@@ -412,7 +422,6 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 				if (t.length() < 5)
 					continue;
 				string k = trim(t).substr(1); // passing '{'
-				DebugPrint(k);
 				ProcessMessage(k);
 			}
 		}

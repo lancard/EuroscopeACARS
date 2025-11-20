@@ -28,10 +28,10 @@ public:
 	const char *GetLogonCode();
 	const char *GetLogonAddress();
 
-	bool DebugMode = false;
 	void DebugPrint(string message);
 	void ProcessMessage(string message);
 
+	int GlobalMessageId = 1000;
 	unordered_map<string, string> LastMessageIdMap;
 
 	void OnCompilePrivateChat(const char *sSenderCallsign,
