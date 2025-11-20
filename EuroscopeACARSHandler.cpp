@@ -1,8 +1,4 @@
 #include "EuroscopeACARSHandler.h"
-#include <format>
-#include <sstream>
-#include <winhttp.h>
-#pragma comment(lib, "winhttp.lib")
 
 #define RGB_YELLOW RGB(255, 255, 0)
 
@@ -132,7 +128,7 @@ std::string ConvertCpdlcHttpEncode(const std::string &value)
 
 		if (c == '?' || c == ':' || c == '(' || c == ')' || c == ',' || c == '\'' || c == '=' || c == '/' || c == '+')
 		{
-			escaped << std::format("{:02X}", c);
+			escaped << std::format("%%{:02X}", c);
 		}
 	}
 	return escaped.str();
@@ -205,17 +201,6 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 		return true;
 	}
 
-	// check starts with .last
-	if (message.rfind(".last ", 0) == 0)
-	{
-		// extract logon code
-		LastSender = message.substr(6); // skip ".last "
-
-		// send confirmation message
-		DisplayUserMessage("ACARS", "SYSTEM", "last sender changed.", true, true, false, false, false);
-		return true;
-	}
-
 	return false;
 }
 
@@ -227,28 +212,30 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	std::string receiver(sReceiverCallsign);
 	std::string message(sChatMessage);
 
-	if (receiver != "ACARS")
+	if (receiver.rfind("ACARS-", 0) != 0)
 		return;
 
-	if (LastSender == "")
-	{
-		DisplayUserMessage("ACARS", "SYSTEM", "no last sender.", true, true, false, false, false);
-		return;
-	}
+	// Get Callsign from receiver
+	std::string callsign = receiver.substr(6);
+
+	std::string LastMessageId = "";
+	if(LastMessageIdMap.contains(callsign))
+		LastMessageId = LastMessageIdMap[callsign];
 
 	// other case, reply for cpdlc
 	// format: /data2/2//NE/FSM 1317 251119 EDDM OCN91D RCD RECEIVED @REQUEST BEING PROCESSED @STANDBY
+	// NE: no reply required
+	// WU: wilco / unable
 	std::string url = std::format(
-		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata%2F16%2F{}%2FNE%2F{}",
+		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata%2F16%2F{}%2FWU%2F{}",
 		GetLogonCode(),
 		GetLogonAddress(),
-		LastSender,
+		callsign,
 		LastMessageId,
 		ConvertCpdlcHttpEncode(message));
-	// DisplayUserMessage("ACARS", "DEBUG", url.c_str(), true, true, false, false, false);
 	HttpGet(url);
-	std::string ackMessage = std::string("CPDLC message sent to ") + LastSender;
-	DisplayUserMessage("ACARS", "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
+	std::string ackMessage = std::format("CPDLC message sent to {}", callsign);
+	DisplayUserMessage(receiver.c_str(), "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
 }
 
 const char *CEuroscopeACARSHandler::GetLogonCode()
@@ -325,6 +312,8 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 
 			try
 			{
+				DisplayUserMessage("ACARS", "DEBUG", acars.c_str(), true, true, false, false, false);
+				
 				// remove leading "ok "
 				std::string message = acars.substr(4);
 				std::string sender = message.substr(0, message.find(' '));
@@ -341,7 +330,7 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 					message = message.substr(0, message.size() - 2);
 				}
 
-				LastSender = sender;
+				std::string acarssender = std::string("ACARS-") + sender;
 
 				// check cpdlc
 				if (acarstype == "cpdlc")
@@ -354,16 +343,14 @@ void CEuroscopeACARSHandler::OnTimer(int Counter)
 					std::string ratype = cpdlc.substr(0, message.find('/'));
 					cpdlc = cpdlc.substr(message.find('/') + 1);
 
-					LastMessageId = messageid;
+					LastMessageIdMap[sender] = messageid;
 
-					DisplayUserMessage("ACARS", sender.c_str(), cpdlc.c_str(), true, true, true, true, true);
+					DisplayUserMessage(acarssender.c_str(), messageid.c_str(), cpdlc.c_str(), true, true, true, true, true);
 				}
 				// normal telex
 				else
 				{
-					LastMessageId = "";
-
-					DisplayUserMessage("ACARS", sender.c_str(), message.c_str(), true, true, true, true, true);
+					DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, true, true, true);
 				}
 			}
 			catch (const std::exception &ee)

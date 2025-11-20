@@ -2,6 +2,11 @@
 #include <SDKDDKVer.h>
 #include <afxwin.h>
 #include <string>
+#include <unordered_map>
+#include <format>
+#include <sstream>
+#include <winhttp.h>
+#pragma comment(lib, "winhttp.lib")
 #include "EuroScopePlugIn.h"
 
 using namespace std;
@@ -23,8 +28,7 @@ public:
 	const char *GetLogonCode();
 	const char *GetLogonAddress();
 
-	std::string LastSender = "";
-	std::string LastMessageId = "0";
+	std::unordered_map<std::string, std::string> LastMessageIdMap;
 
 	void OnCompilePrivateChat(const char *sSenderCallsign,
 							  const char *sReceiverCallsign,
