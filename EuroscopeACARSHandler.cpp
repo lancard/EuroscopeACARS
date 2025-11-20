@@ -120,17 +120,19 @@ string ConvertCpdlcHttpEncode(const string &value)
 		if (c >= 'a' && c <= 'z')
 			c -= 32; // 'a'->'A'
 
-		if (isalnum(static_cast<unsigned char>(c)) ||
-			c == '-' || c == '_' || c == '.')
+		if (isalnum(static_cast<unsigned char>(c)))
 		{
 			escaped << c;
+			continue;
 		}
 
-		if (c == '?' || c == ':' || c == '(' || c == ')' || c == ',' || c == '\'' || c == '=' || c == '/' || c == '+')
+		if (c == '-' || c == '_' || c == '.' || c == '@' || c == '(' || c == ')' || c == ',')
 		{
-			escaped << format("%{:02X}", c);
+			escaped << c;
+			continue;
 		}
 	}
+
 	return escaped.str();
 }
 
@@ -168,7 +170,7 @@ string trim(const string &s)
 }
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
-															   "0.9",
+															   "0.9.2",
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
@@ -323,6 +325,8 @@ void CEuroscopeACARSHandler::ProcessMessage(string message)
 		// check cpdlc
 		if (acarstype == "cpdlc")
 		{
+			message = message.substr(message.find('/') + 1); // pass first ' {/'
+
 			string cpdlc = message.substr(message.find('/') + 1);
 			string messageid = cpdlc.substr(0, cpdlc.find('/'));
 			cpdlc = cpdlc.substr(cpdlc.find('/') + 1);
