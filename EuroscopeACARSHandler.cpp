@@ -170,7 +170,7 @@ string trim(const string &s)
 }
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
-															   "0.9.6",
+															   "0.9.7",
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
@@ -346,7 +346,7 @@ void CEuroscopeACARSHandler::ProcessMessage(string message)
 
 			LastMessageIdMap[sender] = messageid;
 
-			DisplayUserMessage(acarssender.c_str(), messageid.c_str(), cpdlc.c_str(), true, true, true, true, true);
+			DisplayUserMessage(acarssender.c_str(), sender.c_str(), cpdlc.c_str(), true, true, true, true, true);
 		}
 		// normal telex
 		else
