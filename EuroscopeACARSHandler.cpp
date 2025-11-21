@@ -175,7 +175,7 @@ string trim(const string &s)
 }
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
-															   "0.9.9",
+															   PROGRAM_VERSION,
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {

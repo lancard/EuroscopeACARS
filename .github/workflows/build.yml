@@ -26,7 +26,11 @@ jobs:
         run: .\vs_BuildTools.exe --quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.MSBuild --add Microsoft.VisualStudio.Component.VC.ATLMFC --add Microsoft.VisualStudio.Component.VC.MFC --includeRecommended
 
       - name: generate version string
-        run: Get-Date -format "VERSION_STRING=1.yyyyMMdd.1HHmmss" | Out-File -FilePath $env:GITHUB_ENV -Append
+        run: |
+          $content = Get-Content "EuroscopeACARSHandler.h"
+          $line = $content | Where-Object { $_ -match '#define PROGRAM_VERSION' }
+          $version = ($line -replace '.*"(.*)".*','$1')
+          Write-Output "VERSION_STRING=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
        
       - name: run build step
         run: msbuild EuroscopeACARS.vcxproj /p:Configuration=Release /p:Platform=win32
