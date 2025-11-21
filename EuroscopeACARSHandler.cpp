@@ -9,15 +9,15 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 															   "Sung-ho Kim",
 															   "Sung-ho Kim")
 {
-	DisplayUserMessage("Message", "EuroscopeACARS", string("ACARS Loaded.").c_str(), false, false, false, false, false);
+	DisplayMessage("Message", "EuroscopeACARS", "ACARS Loaded.");
 
 	if (GetLogonCode() == nullptr)
 	{
-		DisplayUserMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) .hoppie (logoncode)", true, true, false, false, false);
+		DisplayMessage("ACARS", "SYSTEM", "Please send your hoppie's logon code to access. ex) .hoppie (logoncode)");
 	}
 	if (GetLogonAddress() == nullptr)
 	{
-		DisplayUserMessage("ACARS", "SYSTEM", "Please send your logon address to access. ex) .address RKRR", true, true, false, false, false);
+		DisplayMessage("ACARS", "SYSTEM", "Please send your logon address to access. ex) .address RKRR");
 	}
 
 	if (GetLogonCode() != nullptr && GetLogonAddress() != nullptr)
@@ -25,7 +25,7 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 		string msg = format(
 			"All configuration set. Ready to use! (Logon Address : {}) / To change: .address (address)",
 			GetLogonAddress());
-		DisplayUserMessage("ACARS", "SYSTEM", msg.c_str(), true, true, false, false, false);
+		DisplayMessage("ACARS", "SYSTEM", msg);
 	}
 
 	DebugPrint("Debug Mode on!");
@@ -38,7 +38,7 @@ CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 	terminateSignal = true;
 	if (workerThread.joinable())
 		workerThread.join();
-	DisplayUserMessage("Message", "EuroscopeACARS", "ACARS Unloaded.", false, false, false, false, false);
+	DisplayMessage("Message", "EuroscopeACARS", "ACARS Unloaded.");
 }
 
 void CEuroscopeACARSHandler::ThreadRunner()
@@ -71,7 +71,17 @@ void CEuroscopeACARSHandler::DebugPrint(string message)
 		return;
 	}
 
-	DisplayUserMessage("ACARS", "DEBUG", message.c_str(), true, true, false, false, false);
+	DisplayMessage("ACARS", "DEBUG", message);
+}
+
+void CEuroscopeACARSHandler::DisplayMessage(string catalog, string sender, string message)
+{
+	if (catalog == "" || sender == "")
+	{
+		return;
+	}
+
+	DisplayUserMessage(catalog.c_str(), sender.c_str(), message.c_str(), true, true, false, false, false);
 }
 
 bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
@@ -160,7 +170,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 		SendToHoppie(HoppieRequest(GetLogonCode(), callsign, target, LastMessageId, "WU", message));
 	}
 	string ackMessage = format("CPDLC message sent to {}", target);
-	DisplayUserMessage(receiver.c_str(), "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
+	DisplayMessage(receiver, "SYSTEM", ackMessage);
 }
 
 const char *CEuroscopeACARSHandler::GetLogonCode()
@@ -213,22 +223,26 @@ void CEuroscopeACARSHandler::ProcessMessage(string callsign, string message)
 			if (cpdlc == "REQUEST LOGON")
 			{
 				SendToHoppie(HoppieRequest(GetLogonCode(), callsign, sender, messageid, "NE", "LOGON ACCEPTED"));
-				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged On!", true, true, false, false, false);
+				string logonMessage = format("Logged On : {}", sender);
+				DisplayMessage("ACARS", "SYSTEM", logonMessage);
 				return;
 			}
 			if (cpdlc == "LOGOFF")
 			{
-				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged Off!", true, true, false, false, false);
+				string logoffMessage = format("Logged Off : {}", sender);
+				DisplayMessage("ACARS", "SYSTEM", logoffMessage);
 				return;
 			}
 
 			LastMessageIdMap[acarssender] = messageid;
-			DisplayUserMessage(acarssender.c_str(), sender.c_str(), cpdlc.c_str(), true, true, false, true, false);
+			DisplayMessage(acarssender, sender, cpdlc);
+			MessageBeep(MB_OK);
 		}
 		// normal telex
 		else
 		{
-			DisplayUserMessage(acarssender.c_str(), sender.c_str(), message.c_str(), true, true, false, true, false);
+			DisplayMessage(acarssender, sender, message);
+			MessageBeep(MB_OK);
 		}
 	}
 	catch (const exception &ee)
@@ -260,7 +274,7 @@ void CEuroscopeACARSHandler::OnTimerRequestPolling()
 	if (!printStarted)
 	{
 		string msg = format("Started polling every 30 seconds. (Logon Address : '{}') / To change: .address (address)", GetLogonAddress());
-		DisplayUserMessage("ACARS", "SYSTEM", msg.c_str(), true, true, false, false, false);
+		DisplayMessage("ACARS", "SYSTEM", msg);
 		printStarted = true;
 	}
 
@@ -290,7 +304,7 @@ void CEuroscopeACARSHandler::OnTimerProcessResponse()
 	// check if acars is starting with "error"
 	if (acars.rfind("error", 0) == 0)
 	{
-		DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
+		DisplayMessage("ACARS", "SYSTEM", acars);
 		return;
 	}
 
@@ -303,7 +317,7 @@ void CEuroscopeACARSHandler::OnTimerProcessResponse()
 	// message format sample: ok {TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@}}
 	if (acars.rfind("ok ", 0) != 0)
 	{
-		DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
+		DisplayMessage("ACARS", "SYSTEM", acars);
 		return;
 	}
 

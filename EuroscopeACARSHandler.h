@@ -1,5 +1,5 @@
 #pragma once
-#define PROGRAM_VERSION "1.0.4"
+#define PROGRAM_VERSION "1.0.6"
 #include <SDKDDKVer.h>
 #include <afxwin.h>
 #include <thread>
@@ -47,6 +47,7 @@ public:
 	const char *GetLogonAddress();
 
 	void DebugPrint(string message);
+	void DisplayMessage(string catalog, string sender, string message);
 	void ProcessMessage(string callsign, string message);
 	void SendToHoppie(HoppieRequest h);
 
