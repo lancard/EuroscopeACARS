@@ -7,7 +7,7 @@ Euroscope ACARS (CPDLC / TELEX) Receive and Send (sending is under development)
 # How to use
 1. Download latest release dll file
 2. Load plugin in euroscope
-3. Enter logon code (ex: .hoppie ABCDEFGHI) you can get logon code from hoppie's site)
+3. Enter logon code (ex: .hoppie ABCDEFGHI) you can get logon code from hoppie's site.
 4. Enter logon address (ex: .address RKRR)
 5. If you recv something, message will appear. send back message to client. that's all.
 
