@@ -78,12 +78,10 @@ public:
 class HoppieResponse
 {
 public:
-    HoppieRequest *request;
+    HoppieRequest request;
     string response;
 
-    HoppieResponse(HoppieRequest *req, string res)
+    HoppieResponse(HoppieRequest req, string res) : request(move(req)), response(move(res))
     {
-        request = req;
-        response = res;
     }
 };

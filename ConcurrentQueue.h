@@ -17,12 +17,12 @@ public:
         q.push(move(item));
     }
 
-    T Dequeue()
+    optional<T> Dequeue()
     {
         lock_guard<mutex> lock(mtx);
         if (q.empty())
-            return nullptr;
-        string item = move(q.front());
+            return nullopt;
+        T item = move(q.front());
         q.pop();
         return item;
     }

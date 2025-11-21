@@ -30,25 +30,29 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 
 	DebugPrint("Debug Mode on!");
 
-	thread(&CEuroscopeACARSHandler::ThreadRunner, this).detach();
+	workerThread = thread(&CEuroscopeACARSHandler::ThreadRunner, this);
 }
 
 CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 {
 	terminateSignal = true;
-	this_thread::sleep_for(chrono::seconds(2));
+	if (workerThread.joinable())
+		workerThread.join();
 	DisplayUserMessage("Message", "EuroscopeACARS", "ACARS Unloaded.", false, false, false, false, false);
 }
 
 void CEuroscopeACARSHandler::ThreadRunner()
 {
-	while (!terminateSignal)
+	while (!terminateSignal.load())
 	{
-		HoppieRequest req = requestQueue.Dequeue();
+		optional<HoppieRequest> req = requestQueue.Dequeue();
 
-		string res = HttpGet(req.GetUrl());
+		if (req.has_value())
+		{
+			string res = HttpGet(req.value().GetUrl());
 
-		responseQueue.Enqueue(HoppieResponse(&req, res));
+			responseQueue.Enqueue(HoppieResponse(req.value(), res));
+		}
 
 		this_thread::sleep_for(chrono::seconds(1));
 	}
@@ -262,14 +266,14 @@ void CEuroscopeACARSHandler::OnTimerRequestPolling()
 
 void CEuroscopeACARSHandler::OnTimerProcessResponse()
 {
-	HoppieResponse res = responseQueue.Dequeue();
-	if (res == nullptr)
+	optional<HoppieResponse> res = responseQueue.Dequeue();
+	if (!res.has_value())
 		return;
 
-	if(res.request.Type != "poll")
+	if (res.value().request.Type != "poll")
 		return;
 
-	string acars = res.response;
+	string acars = res.value().response;
 
 	if (acars == "")
 		return;
@@ -305,7 +309,7 @@ void CEuroscopeACARSHandler::OnTimerProcessResponse()
 		if (t.length() < 5)
 			continue;
 		string k = trim(t).substr(1); // passing '{'
-		ProcessMessage(res.request.from, k);
+		ProcessMessage(res.value().request.From, k);
 	}
 }
 
