@@ -1,5 +1,5 @@
 #pragma once
-#define PROGRAM_VERSION "1.0.2"
+#define PROGRAM_VERSION "1.0.4"
 #include <SDKDDKVer.h>
 #include <afxwin.h>
 #include <thread>
@@ -23,6 +23,7 @@ using namespace EuroScopePlugIn;
 class CEuroscopeACARSHandler : public EuroScopePlugIn::CPlugIn
 {
 private:
+	bool printStarted = false;
 	atomic<bool> terminateSignal{false};
 	thread workerThread;
 	ConcurrentQueue<HoppieRequest> requestQueue;

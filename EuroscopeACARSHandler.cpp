@@ -138,12 +138,14 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 
 	// Get Callsign from receiver
 	vector<string> callsign_and_target = split(receiver.substr(6), "-");
+	if (callsign_and_target.size() < 2)
+		return;
 	string callsign = callsign_and_target[0];
 	string target = callsign_and_target[1];
 
 	string LastMessageId = "";
-	if (LastMessageIdMap.contains(callsign))
-		LastMessageId = LastMessageIdMap[callsign];
+	if (LastMessageIdMap.contains(receiver))
+		LastMessageId = LastMessageIdMap[receiver];
 
 	// other case, reply for cpdlc
 	// format: /data2/2//NE/FSM 1317 251119 EDDM OCN91D RCD RECEIVED @REQUEST BEING PROCESSED @STANDBY
@@ -157,7 +159,7 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	{
 		SendToHoppie(HoppieRequest(GetLogonCode(), callsign, target, LastMessageId, "WU", message));
 	}
-	string ackMessage = format("CPDLC message sent to {}", callsign);
+	string ackMessage = format("CPDLC message sent to {}", target);
 	DisplayUserMessage(receiver.c_str(), "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
 }
 
@@ -208,8 +210,6 @@ void CEuroscopeACARSHandler::ProcessMessage(string callsign, string message)
 			string ratype = cpdlc.substr(0, cpdlc.find('/'));
 			cpdlc = cpdlc.substr(cpdlc.find('/') + 1);
 
-			LastMessageIdMap[sender] = messageid;
-
 			if (cpdlc == "REQUEST LOGON")
 			{
 				SendToHoppie(HoppieRequest(GetLogonCode(), callsign, sender, messageid, "NE", "LOGON ACCEPTED"));
@@ -222,6 +222,7 @@ void CEuroscopeACARSHandler::ProcessMessage(string callsign, string message)
 				return;
 			}
 
+			LastMessageIdMap[acarssender] = messageid;
 			DisplayUserMessage(acarssender.c_str(), sender.c_str(), cpdlc.c_str(), true, true, false, true, false);
 		}
 		// normal telex
@@ -256,6 +257,13 @@ void CEuroscopeACARSHandler::OnTimerRequestPolling()
 		return;
 	*/
 
+	if (!printStarted)
+	{
+		string msg = format("Started polling every 30 seconds. (Logon Address : '{}') / To change: .address (address)", GetLogonAddress());
+		DisplayUserMessage("ACARS", "SYSTEM", msg.c_str(), true, true, false, false, false);
+		printStarted = true;
+	}
+
 	string LogonAddressList(LogonAddress);
 	vector<string> list = split(LogonAddressList, ",");
 	for (const string &callsign : list)
@@ -273,7 +281,7 @@ void CEuroscopeACARSHandler::OnTimerProcessResponse()
 	if (res.value().request.Type != "poll")
 		return;
 
-	string acars = res.value().response;
+	string acars = trim(res.value().response);
 
 	if (acars == "")
 		return;
