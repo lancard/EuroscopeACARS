@@ -1,7 +1,8 @@
 #pragma once
-#define PROGRAM_VERSION "1.0.0"
+#define PROGRAM_VERSION "1.0.1"
 #include <SDKDDKVer.h>
 #include <afxwin.h>
+#include <thread>
 #include <string>
 #include <ranges>
 #include <algorithm>
@@ -16,8 +17,16 @@
 using namespace std;
 using namespace EuroScopePlugIn;
 
+#include "ConcurrentQueue.h"
+#include "HoppieRequestAndResponse.h"
+
 class CEuroscopeACARSHandler : public EuroScopePlugIn::CPlugIn
 {
+private:
+	bool terminateSignal = false;
+	ConcurrentQueue<HoppieRequest> requestQueue;
+	ConcurrentQueue<HoppieResponse> responseQueue;
+
 public:
 	CEuroscopeACARSHandler();
 	~CEuroscopeACARSHandler();
@@ -28,13 +37,16 @@ public:
 						RECT Area);
 
 	void OnTimer(int Counter);
+	void OnTimerProcessResponse();
+	void OnTimerRequestPolling();
+	void ThreadRunner();
 
 	const char *GetLogonCode();
 	const char *GetLogonAddress();
 
 	void DebugPrint(string message);
-	void ProcessMessage(string message);
-	string SendToHoppie(const string to, const string replyid, const string cpdlcratype, const string cpdlcmessage);
+	void ProcessMessage(string callsign, string message);
+	void SendToHoppie(HoppieRequest h);
 
 	int GlobalMessageId = 1000;
 	unordered_map<string, string> LastMessageIdMap;

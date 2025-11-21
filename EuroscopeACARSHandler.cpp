@@ -1,178 +1,8 @@
 #include "EuroscopeACARSHandler.h"
+#include "EuroscopeUtils.h"
 
 #define RGB_YELLOW RGB(255, 255, 0)
 
-string HttpGet(const string &url)
-{
-	int wlen = MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, nullptr, 0);
-	wstring wurl(wlen, 0);
-	MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, &wurl[0], wlen);
-
-	URL_COMPONENTS comp = {0};
-	comp.dwStructSize = sizeof(comp);
-
-	wchar_t host[256] = {};
-	wchar_t path[2048] = {};
-	comp.lpszHostName = host;
-	comp.dwHostNameLength = 256;
-	comp.lpszUrlPath = path;
-	comp.dwUrlPathLength = 2048;
-
-	if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &comp))
-	{
-		return "";
-	}
-
-	bool isHttps = (comp.nScheme == INTERNET_SCHEME_HTTPS);
-	INTERNET_PORT port = comp.nPort;
-
-	HINTERNET hSession = WinHttpOpen(L"HttpClient/1.0",
-									 WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-									 WINHTTP_NO_PROXY_NAME,
-									 WINHTTP_NO_PROXY_BYPASS, 0);
-
-	if (!hSession)
-		return "";
-
-	HINTERNET hConnect = WinHttpConnect(hSession, comp.lpszHostName, port, 0);
-	if (!hConnect)
-	{
-		WinHttpCloseHandle(hSession);
-		return "";
-	}
-
-	HINTERNET hRequest = WinHttpOpenRequest(
-		hConnect, L"GET", comp.lpszUrlPath,
-		NULL, WINHTTP_NO_REFERER,
-		WINHTTP_DEFAULT_ACCEPT_TYPES,
-		isHttps ? WINHTTP_FLAG_SECURE : 0);
-
-	if (!hRequest)
-	{
-		WinHttpCloseHandle(hConnect);
-		WinHttpCloseHandle(hSession);
-		return "";
-	}
-
-	BOOL result = WinHttpSendRequest(
-		hRequest,
-		WINHTTP_NO_ADDITIONAL_HEADERS,
-		0,
-		WINHTTP_NO_REQUEST_DATA, 0,
-		0, 0);
-
-	if (!result)
-	{
-		WinHttpCloseHandle(hRequest);
-		WinHttpCloseHandle(hConnect);
-		WinHttpCloseHandle(hSession);
-		return "";
-	}
-
-	result = WinHttpReceiveResponse(hRequest, NULL);
-	if (!result)
-	{
-		WinHttpCloseHandle(hRequest);
-		WinHttpCloseHandle(hConnect);
-		WinHttpCloseHandle(hSession);
-		return "";
-	}
-
-	string response;
-	DWORD sizeAvailable = 0;
-
-	do
-	{
-		sizeAvailable = 0;
-		if (!WinHttpQueryDataAvailable(hRequest, &sizeAvailable))
-			break;
-		if (sizeAvailable == 0)
-			break;
-
-		string buffer(sizeAvailable, 0);
-		DWORD bytesRead = 0;
-		if (!WinHttpReadData(hRequest, &buffer[0], sizeAvailable, &bytesRead))
-			break;
-
-		response.append(buffer.c_str(), bytesRead);
-
-	} while (sizeAvailable > 0);
-
-	WinHttpCloseHandle(hRequest);
-	WinHttpCloseHandle(hConnect);
-	WinHttpCloseHandle(hSession);
-
-	return response;
-}
-
-string ConvertCpdlcHttpEncode(const string &value)
-{
-	ostringstream escaped;
-
-	for (char c : value)
-	{
-		if (c == ' ')
-		{
-			escaped << '+';
-			continue;
-		}
-
-		if (isalnum(static_cast<unsigned char>(c)))
-		{
-			escaped << c;
-			continue;
-		}
-
-		if (c == '-' || c == '.' || c == '@')
-		{
-			escaped << c;
-			continue;
-		}
-	}
-
-	return escaped.str();
-}
-
-std::string uppercase(std::string s)
-{
-	std::ranges::transform(s, s.begin(),
-						   [](unsigned char c)
-						   { return std::toupper(c); });
-	return s;
-}
-
-vector<string> split(const string &str, const string &delim)
-{
-	vector<string> result;
-	size_t start = 0, pos;
-	while ((pos = str.find(delim, start)) != string::npos)
-	{
-		result.push_back(str.substr(start, pos - start));
-		start = pos + delim.size();
-	}
-	result.push_back(str.substr(start));
-	return result;
-}
-
-string trim(const string &s)
-{
-	size_t start = 0;
-	while (start < s.size() && isspace(static_cast<unsigned char>(s[start])))
-	{
-		++start;
-	}
-
-	if (start == s.size())
-		return "";
-
-	size_t end = s.size() - 1;
-	while (end > start && isspace(static_cast<unsigned char>(s[end])))
-	{
-		--end;
-	}
-
-	return s.substr(start, end - start + 1);
-}
 CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
 															   "EuroscopeACARS",
 															   PROGRAM_VERSION,
@@ -197,34 +27,36 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 			GetLogonAddress());
 		DisplayUserMessage("ACARS", "SYSTEM", msg.c_str(), true, true, false, false, false);
 	}
+
+	DebugPrint("Debug Mode on!");
+
+	thread(&CEuroscopeACARSHandler::ThreadRunner, this).detach();
 }
 
 CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 {
+	terminateSignal = true;
+	this_thread::sleep_for(chrono::seconds(2));
 	DisplayUserMessage("Message", "EuroscopeACARS", "ACARS Unloaded.", false, false, false, false, false);
 }
 
-string CEuroscopeACARSHandler::SendToHoppie(const string to, const string replyid, const string cpdlcratype, const string cpdlcmessage)
+void CEuroscopeACARSHandler::ThreadRunner()
 {
-	const char *logoncode = GetLogonCode();
-	const char *logonaddress = GetLogonAddress();
+	while (!terminateSignal)
+	{
+		HoppieRequest req = requestQueue.Dequeue();
 
-	if (logoncode == nullptr || logonaddress == nullptr)
-		return "";
+		string res = HttpGet(req.GetUrl());
 
-	GlobalMessageId += 10;
+		responseQueue.Enqueue(HoppieResponse(&req, res));
 
-	string url = format(
-		"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=cpdlc&packet=%2Fdata2%2F{}%2F{}%2F{}%2F{}",
-		logoncode,
-		logonaddress,
-		to,
-		GlobalMessageId,
-		replyid,
-		cpdlcratype,
-		ConvertCpdlcHttpEncode(cpdlcmessage));
-	DebugPrint(url);
-	return HttpGet(url);
+		this_thread::sleep_for(chrono::seconds(1));
+	}
+}
+
+void CEuroscopeACARSHandler::SendToHoppie(HoppieRequest req)
+{
+	requestQueue.Enqueue(req);
 }
 
 void CEuroscopeACARSHandler::DebugPrint(string message)
@@ -301,7 +133,9 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 		return;
 
 	// Get Callsign from receiver
-	string callsign = receiver.substr(6);
+	vector<string> callsign_and_target = split(receiver.substr(6), "-");
+	string callsign = callsign_and_target[0];
+	string target = callsign_and_target[1];
 
 	string LastMessageId = "";
 	if (LastMessageIdMap.contains(callsign))
@@ -313,11 +147,11 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	// WU: wilco / unable
 	if (message == "ROGER" || message == "RGR" || message == "AFFIRM" || message == "AFFIRMATIVE" || message == "NEG" || message == "NEGATIVE")
 	{
-		SendToHoppie(callsign, LastMessageId, "NE", message);
+		SendToHoppie(HoppieRequest(GetLogonCode(), callsign, target, LastMessageId, "NE", message));
 	}
 	else
 	{
-		SendToHoppie(callsign, LastMessageId, "WU", message);
+		SendToHoppie(HoppieRequest(GetLogonCode(), callsign, target, LastMessageId, "WU", message));
 	}
 	string ackMessage = format("CPDLC message sent to {}", callsign);
 	DisplayUserMessage(receiver.c_str(), "SYSTEM", ackMessage.c_str(), true, true, false, false, false);
@@ -345,7 +179,7 @@ const char *CEuroscopeACARSHandler::GetLogonAddress()
 	return LogonAddress;
 }
 
-void CEuroscopeACARSHandler::ProcessMessage(string message)
+void CEuroscopeACARSHandler::ProcessMessage(string callsign, string message)
 {
 	// message format sample: TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@
 	try
@@ -355,7 +189,7 @@ void CEuroscopeACARSHandler::ProcessMessage(string message)
 		string acarstype = message.substr(0, message.find(' '));
 		message = message.substr(message.find(' ') + 2);
 
-		string acarssender = string("ACARS-") + sender;
+		string acarssender = string("ACARS-") + callsign + "-" + sender;
 
 		// check cpdlc
 		if (acarstype == "cpdlc")
@@ -374,7 +208,7 @@ void CEuroscopeACARSHandler::ProcessMessage(string message)
 
 			if (cpdlc == "REQUEST LOGON")
 			{
-				SendToHoppie(sender, messageid, "NE", "LOGON ACCEPTED");
+				SendToHoppie(HoppieRequest(GetLogonCode(), callsign, sender, messageid, "NE", "LOGON ACCEPTED"));
 				DisplayUserMessage(acarssender.c_str(), sender.c_str(), "Logged On!", true, true, false, false, false);
 				return;
 			}
@@ -398,71 +232,94 @@ void CEuroscopeACARSHandler::ProcessMessage(string message)
 	}
 }
 
+void CEuroscopeACARSHandler::OnTimerRequestPolling()
+{
+	const char *LogonCode = GetLogonCode();
+	if (LogonCode == nullptr)
+		return;
+
+	const char *LogonAddress = GetLogonAddress();
+	if (LogonAddress == nullptr)
+		return;
+
+	if (!ControllerMyself().IsController())
+		return;
+
+	/*
+	const char *MyCallsign = ControllerMyself().GetCallsign();
+	// check callsign is empty
+	if (MyCallsign == nullptr || MyCallsign[0] == '\0')
+		return;
+	*/
+
+	string LogonAddressList(LogonAddress);
+	vector<string> list = split(LogonAddressList, ",");
+	for (const string &callsign : list)
+	{
+		SendToHoppie(HoppieRequest(GetLogonCode(), callsign, callsign, "poll", ""));
+	}
+}
+
+void CEuroscopeACARSHandler::OnTimerProcessResponse()
+{
+	HoppieResponse res = responseQueue.Dequeue();
+	if (res == nullptr)
+		return;
+
+	if(res.request.Type != "poll")
+		return;
+
+	string acars = res.response;
+
+	if (acars == "")
+		return;
+
+	// process request
+	// check if acars is starting with "error"
+	if (acars.rfind("error", 0) == 0)
+	{
+		DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
+		return;
+	}
+
+	// check if acars is just 'ok' string
+	if (acars == "ok")
+		return;
+
+	DebugPrint(acars);
+
+	// message format sample: ok {TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@}}
+	if (acars.rfind("ok ", 0) != 0)
+	{
+		DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
+		return;
+	}
+
+	// remove leading "ok "
+	string message = acars.substr(3);
+
+	// split by }}
+	vector<string> messages = split(message, "}}");
+	for (string &t : messages)
+	{
+		if (t.length() < 5)
+			continue;
+		string k = trim(t).substr(1); // passing '{'
+		ProcessMessage(res.request.from, k);
+	}
+}
+
 void CEuroscopeACARSHandler::OnTimer(int Counter)
 {
 	try
 	{
+		// polling request
 		if (Counter % 30 == 0)
 		{
-			const char *LogonCode = GetLogonCode();
-			if (LogonCode == nullptr)
-				return;
-
-			const char *LogonAddress = GetLogonAddress();
-			if (LogonAddress == nullptr)
-				return;
-
-			if (!ControllerMyself().IsController())
-				return;
-
-			/*
-			const char *MyCallsign = ControllerMyself().GetCallsign();
-			// check callsign is empty
-			if (MyCallsign == nullptr || MyCallsign[0] == '\0')
-				return;
-			*/
-
-			// prepare url safely
-			string url = format(
-				"http://www.hoppie.nl/acars/system/connect.html?logon={}&from={}&to={}&type=poll&packet=",
-				LogonCode,
-				LogonAddress,
-				LogonAddress);
-			string acars = HttpGet(url);
-
-			// check if acars is starting with "error"
-			if (acars.rfind("error", 0) == 0)
-			{
-				DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
-				return;
-			}
-
-			// check if acars is just 'ok' string
-			if (acars == "ok")
-				return;
-
-			DebugPrint(acars);
-
-			// message format sample: ok {TEST cpdlc {/data2/0184/0185/Y/AT @BARKO@ DESCEND TO AND MAINTAIN @FL330@}}
-			if (acars.rfind("ok ", 0) != 0)
-			{
-				DisplayUserMessage("ACARS", "SYSTEM", acars.c_str(), true, true, false, false, false);
-				return;
-			}
-
-			// remove leading "ok "
-			string message = acars.substr(3);
-
-			// split by }}
-			vector<string> messages = split(message, "}}");
-			for (string &t : messages)
-			{
-				if (t.length() < 5)
-					continue;
-				string k = trim(t).substr(1); // passing '{'
-				ProcessMessage(k);
-			}
+			OnTimerRequestPolling();
 		}
+
+		OnTimerProcessResponse();
 	}
 	catch (const exception &e)
 	{
