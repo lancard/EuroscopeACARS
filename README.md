@@ -10,6 +10,7 @@ Euroscope ACARS (CPDLC / TELEX) Receive and Send (sending is under development)
 3. Enter logon code (ex: .hoppie ABCDEFGHI) you can get logon code from hoppie's site.
 4. Enter logon address (ex: .address RKRR)
 5. If you recv something, message will appear. send back message to client. that's all.
+6. If you accidentally close the chat window, you can bring it back with .chat command (ex: .chat ACARS-RKRR-KAL1234)
 
 # How to build and run
 1. Run buildtool_install_for_local.bat
