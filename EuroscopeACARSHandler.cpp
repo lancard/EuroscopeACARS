@@ -104,6 +104,22 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 		return true;
 	}
 
+	// just ".address"
+	if (message == ".address")
+	{
+		const char *LogonAddress = GetLogonAddress();
+		if (LogonAddress == nullptr)
+		{
+			DisplayUserMessage("ACARS", "SYSTEM", "Logon address is not set. Use .address (address) to set it.", true, true, false, false, false);
+		}
+		else
+		{
+			string msg = format("Current logon address: {}", LogonAddress);
+			DisplayUserMessage("ACARS", "SYSTEM", msg.c_str(), true, true, false, false, false);
+		}
+		return true;
+	}
+
 	// check starts with .address
 	if (message.rfind(".address ", 0) == 0)
 	{
