@@ -137,6 +137,31 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 	}
 
 	// check starts with .address
+	if (message.rfind(".logoff ", 0) == 0)
+	{
+		// extract target
+		string target = message.substr(8); // skip ".logoff "
+
+		// check pilot logon map
+		if (!PilotLogonMap.contains(target))
+		{
+			DisplayUserMessage("ACARS", "SYSTEM", "Pilot not logged on or unknown pilot callsign.", true, true, false, false, false);
+			return true;
+		}
+
+		SendToHoppie(HoppieRequest(GetLogonCode(), PilotLogonMap[target], target, "", "NE", "LOGOFF"));
+		SendToHoppie(HoppieRequest(GetLogonCode(), PilotLogonMap[target], target, "", "NE", "CONTROLLER TERMINATED CPDLC"));
+
+		// send confirmation message
+		DisplayUserMessage("ACARS", "SYSTEM", "Logoff command sent!", true, true, false, false, false);
+
+		// remove from pilot logon map
+		PilotLogonMap.erase(target);
+
+		return true;
+	}
+
+	// check starts with .address
 	if (message.rfind(".acarsdebug", 0) == 0)
 	{
 		// save to settings
@@ -158,6 +183,14 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	string receiver(sReceiverCallsign);
 	string message(sChatMessage);
 	message = uppercase(message);
+	string responseExpectationType = "WU"; // wilco / unable
+
+	// check message starts with #
+	if (message.rfind("#", 0) == 0)
+	{
+		responseExpectationType = "NE"; // no response
+		message = message.substr(1);	// remove #
+	}
 
 	if (receiver.rfind("ACARS-", 0) != 0)
 		return;
@@ -177,14 +210,11 @@ void CEuroscopeACARSHandler::OnCompilePrivateChat(const char *sSenderCallsign,
 	// format: /data2/2//NE/FSM 1317 251119 EDDM OCN91D RCD RECEIVED @REQUEST BEING PROCESSED @STANDBY
 	// NE: no reply required
 	// WU: wilco / unable
-	if (message == "ROGER" || message == "RGR" || message == "AFFIRM" || message == "AFFIRMATIVE" || message == "NEG" || message == "NEGATIVE")
+	if (message == "ROGER" || message == "RGR" || message == "AFFIRM" || message == "AFFIRMATIVE" || message == "NEG" || message == "NEGATIVE" || message == "OK")
 	{
-		SendToHoppie(HoppieRequest(GetLogonCode(), callsign, target, LastMessageId, "NE", message));
+		responseExpectationType = "NE";
 	}
-	else
-	{
-		SendToHoppie(HoppieRequest(GetLogonCode(), callsign, target, LastMessageId, "WU", message));
-	}
+	SendToHoppie(HoppieRequest(GetLogonCode(), callsign, target, LastMessageId, responseExpectationType, message));
 	string ackMessage = format("CPDLC message sent to {}", target);
 	DisplayMessage(receiver, "SYSTEM", ackMessage);
 }
@@ -239,6 +269,7 @@ void CEuroscopeACARSHandler::ProcessMessage(string callsign, string message)
 			if (cpdlc == "REQUEST LOGON")
 			{
 				SendToHoppie(HoppieRequest(GetLogonCode(), callsign, sender, messageid, "NE", "LOGON ACCEPTED"));
+				PilotLogonMap[sender] = callsign;
 				string logonMessage = format("Logged On : {}", sender);
 				DisplayMessage("ACARS", "SYSTEM", logonMessage);
 				return;

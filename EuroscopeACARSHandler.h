@@ -1,5 +1,5 @@
 #pragma once
-#define PROGRAM_VERSION "1.0.7"
+#define PROGRAM_VERSION "1.0.8"
 #include <SDKDDKVer.h>
 #include <afxwin.h>
 #include <thread>
@@ -53,6 +53,7 @@ public:
 
 	int GlobalMessageId = 1000;
 	unordered_map<string, string> LastMessageIdMap;
+	unordered_map<string, string> PilotLogonMap;
 
 	void OnCompilePrivateChat(const char *sSenderCallsign,
 							  const char *sReceiverCallsign,
