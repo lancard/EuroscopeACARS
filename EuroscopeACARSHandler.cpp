@@ -278,6 +278,7 @@ void CEuroscopeACARSHandler::ProcessMessage(string callsign, string message)
 			{
 				string logoffMessage = format("Logged Off : {}", sender);
 				DisplayMessage("ACARS", "SYSTEM", logoffMessage);
+				PilotLogonMap.erase(sender);
 				return;
 			}
 
