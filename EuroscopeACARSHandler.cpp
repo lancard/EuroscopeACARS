@@ -1,5 +1,6 @@
 #include "EuroscopeACARSHandler.h"
 #include "EuroscopeUtils.h"
+#include "json.hpp"
 
 #define RGB_YELLOW RGB(255, 255, 0)
 
@@ -30,18 +31,19 @@ CEuroscopeACARSHandler::CEuroscopeACARSHandler(void) : CPlugIn(EuroScopePlugIn::
 
 	DebugPrint("Debug Mode on!");
 
-	workerThread = thread(&CEuroscopeACARSHandler::ThreadRunner, this);
+	hoppieWorkerThread = thread(&CEuroscopeACARSHandler::HoppieThreadRunner, this);
+	vatsimConnectionCheckThread = thread(&CEuroscopeACARSHandler::VatsimConnectionCheckThreadRunner, this);
 }
 
 CEuroscopeACARSHandler::~CEuroscopeACARSHandler(void)
 {
 	terminateSignal = true;
-	if (workerThread.joinable())
-		workerThread.join();
+	if (hoppieWorkerThread.joinable())
+		hoppieWorkerThread.join();
 	DisplayMessage("Message", "EuroscopeACARS", "ACARS Unloaded.");
 }
 
-void CEuroscopeACARSHandler::ThreadRunner()
+void CEuroscopeACARSHandler::HoppieThreadRunner()
 {
 	while (!terminateSignal.load())
 	{
@@ -55,6 +57,43 @@ void CEuroscopeACARSHandler::ThreadRunner()
 		}
 
 		this_thread::sleep_for(chrono::seconds(1));
+	}
+}
+
+void CEuroscopeACARSHandler::VatsimConnectionCheckThreadRunner()
+{
+	bool connected = false;
+	while (!terminateSignal.load())
+	{
+		try
+		{
+			string myCallsign = string(vatsimCallsign.load());
+
+			nlohmann::json test = nlohmann::json::parse(HttpGet("https://api.vatsim.net/v2/atc/online"));
+
+			connected = false;
+			for (const auto &item : test)
+			{
+				int id = item["id"];
+				int rating = item["rating"];
+				string callsign = item["callsign"];
+				string server = item["server"];
+
+				if (callsign == myCallsign && rating >= 2)
+				{
+					vatsimCid = id;
+					connected = true;
+					break;
+				}
+			}
+
+			isVatsimProductionServerConnected = connected;
+		}
+		catch (...)
+		{
+		}
+
+		this_thread::sleep_for(chrono::seconds(30));
 	}
 }
 
@@ -164,11 +203,18 @@ bool CEuroscopeACARSHandler::OnCompileCommand(const char *sCommandLine)
 	// check starts with .address
 	if (message.rfind(".acarsdebug", 0) == 0)
 	{
-		// save to settings
-		SaveDataToSettings("AcarsDebugMode",
-						   "ACARS Debug Mode",
-						   "on");
-		DisplayUserMessage("ACARS", "SYSTEM", "Debug mode on.", true, true, false, false, false);
+		const char *DebugMode = GetDataFromSettings("AcarsDebugMode");
+		if (DebugMode == nullptr || DebugMode[0] != 'o')
+		{
+			SaveDataToSettings("AcarsDebugMode", "ACARS Debug Mode", "on");
+			DisplayUserMessage("ACARS", "SYSTEM", "Debug mode on.", true, true, false, false, false);
+		}
+		else
+		{
+			SaveDataToSettings("AcarsDebugMode", "ACARS Debug Mode", "none");
+			DisplayUserMessage("ACARS", "SYSTEM", "Debug mode off.", true, true, false, false, false);
+		}
+
 		return true;
 	}
 
@@ -312,12 +358,10 @@ void CEuroscopeACARSHandler::OnTimerRequestPolling()
 	if (!ControllerMyself().IsController())
 		return;
 
-	/*
-	const char *MyCallsign = ControllerMyself().GetCallsign();
-	// check callsign is empty
-	if (MyCallsign == nullptr || MyCallsign[0] == '\0')
+	vatsimCallsign = ControllerMyself().GetCallsign();
+
+	if (!isVatsimProductionServerConnected.load())
 		return;
-	*/
 
 	if (!printStarted)
 	{

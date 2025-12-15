@@ -1,5 +1,5 @@
 #pragma once
-#define PROGRAM_VERSION "1.0.8"
+#define PROGRAM_VERSION "1.1.1"
 #include <SDKDDKVer.h>
 #include <afxwin.h>
 #include <thread>
@@ -24,8 +24,12 @@ class CEuroscopeACARSHandler : public EuroScopePlugIn::CPlugIn
 {
 private:
 	bool printStarted = false;
+	atomic<int> vatsimCid{0};
+	atomic<const char *> vatsimCallsign{""};
 	atomic<bool> terminateSignal{false};
-	thread workerThread;
+	atomic<bool> isVatsimProductionServerConnected{false};
+	thread hoppieWorkerThread;
+	thread vatsimConnectionCheckThread;
 	ConcurrentQueue<HoppieRequest> requestQueue;
 	ConcurrentQueue<HoppieResponse> responseQueue;
 
@@ -41,7 +45,8 @@ public:
 	void OnTimer(int Counter);
 	void OnTimerProcessResponse();
 	void OnTimerRequestPolling();
-	void ThreadRunner();
+	void HoppieThreadRunner();
+	void VatsimConnectionCheckThreadRunner();
 
 	const char *GetLogonCode();
 	const char *GetLogonAddress();
